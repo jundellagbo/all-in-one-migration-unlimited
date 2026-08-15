@@ -40,8 +40,10 @@ class Ai1wm_Status_Controller {
 
 		try {
 			// Ensure that unauthorized people cannot access status action
-			ai1wm_verify_secret_key( $secret_key );
+			// Polled from the export, import and backups screens alike
+			ai1wm_verify_access( $secret_key, array( 'export', 'import' ) );
 		} catch ( Ai1wm_Not_Valid_Secret_Key_Exception $e ) {
+			status_header( 403 );
 			exit;
 		}
 

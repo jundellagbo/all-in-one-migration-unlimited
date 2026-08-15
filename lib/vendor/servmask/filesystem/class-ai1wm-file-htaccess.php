@@ -32,7 +32,18 @@ class Ai1wm_File_Htaccess {
 	 * @return boolean
 	 */
 	public static function create( $path ) {
+		// The previous version of this file only set a MIME type and turned off directory listings,
+		// which left every backup downloadable by anyone who guessed its name - and a backup is the
+		// entire database, password hashes included. Deny web access outright; the plugin reads
+		// these files from disk and never needs them served over HTTP.
 		return Ai1wm_File::create( $path, implode( PHP_EOL, array(
+			'<IfModule mod_authz_core.c>',
+			'Require all denied',
+			'</IfModule>',
+			'<IfModule !mod_authz_core.c>',
+			'Order deny,allow',
+			'Deny from all',
+			'</IfModule>',
 			'<IfModule mod_mime.c>',
 			'AddType application/octet-stream .wpress',
 			'</IfModule>',
@@ -41,6 +52,15 @@ class Ai1wm_File_Htaccess {
 			'</IfModule>',
 			'<IfModule mod_autoindex.c>',
 			'Options -Indexes',
+			'</IfModule>',
+			'<IfModule mod_php.c>',
+			'php_flag engine off',
+			'</IfModule>',
+			'<IfModule mod_php7.c>',
+			'php_flag engine off',
+			'</IfModule>',
+			'<IfModule mod_php8.c>',
+			'php_flag engine off',
 			'</IfModule>',
 		) ) );
 	}

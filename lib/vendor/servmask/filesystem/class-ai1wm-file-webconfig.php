@@ -32,9 +32,15 @@ class Ai1wm_File_Webconfig {
 	 * @return boolean
 	 */
 	public static function create( $path ) {
+		// Matches the .htaccess policy: deny web access to this directory entirely rather than
+		// merely hiding the listing. See Ai1wm_File_Htaccess::create for the reasoning.
 		return Ai1wm_File::create( $path, implode( PHP_EOL, array(
+			'<?xml version="1.0" encoding="UTF-8"?>',
 			'<configuration>',
 			'<system.webServer>',
+			'<authorization>',
+			'<deny users="*" />',
+			'</authorization>',
 			'<staticContent>',
 			'<mimeMap fileExtension=".wpress" mimeType="application/octet-stream" />',
 			'</staticContent>',

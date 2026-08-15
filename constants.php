@@ -326,6 +326,16 @@ define( 'AI1WM_BACKUPS_PATH', WP_CONTENT_DIR . DIRECTORY_SEPARATOR . 'ai1wm-back
 define( 'AI1WM_STORAGE_INDEX', AI1WM_STORAGE_PATH . DIRECTORY_SEPARATOR . 'index.php' );
 
 // ==========================
+// = Storage .htaccess File =
+// ==========================
+define( 'AI1WM_STORAGE_HTACCESS', AI1WM_STORAGE_PATH . DIRECTORY_SEPARATOR . '.htaccess' );
+
+// ===========================
+// = Storage web.config File =
+// ===========================
+define( 'AI1WM_STORAGE_WEBCONFIG', AI1WM_STORAGE_PATH . DIRECTORY_SEPARATOR . 'web.config' );
+
+// ==========================
 // = Backups index.php File =
 // ==========================
 define( 'AI1WM_BACKUPS_INDEX', AI1WM_BACKUPS_PATH . DIRECTORY_SEPARATOR . 'index.php' );

@@ -234,6 +234,18 @@ class Ai1wm_Extractor extends Ai1wm_Archiver {
 						// Escape Windows directory separator in file name
 						$file_name = $this->escape_windows_directory_separator( $location . DIRECTORY_SEPARATOR . $file_name );
 
+						// The stored path comes from the archive, so a hand-crafted .wpress can put
+						// traversal sequences in it and land the write anywhere the web user can
+						// reach - wp-config.php, wp-admin, a sibling site. Anything that resolves
+						// outside the extraction directory is skipped.
+						if ( ! ai1wm_is_path_inside( $location, $file_name ) || ! ai1wm_is_path_inside( $location, $file_path ) ) {
+							if ( @fseek( $this->file_handle, $file_size, SEEK_CUR ) === -1 ) {
+								throw new Ai1wm_Not_Seekable_Exception( sprintf( 'Unable to seek to offset of file. File: %s Offset: %d', $this->file_name, $file_size ) );
+							}
+
+							return $completed;
+						}
+
 						// Check if location doesn't exist, then create it
 						if ( false === is_dir( $file_path ) ) {
 							@mkdir( $file_path, $this->get_permissions_for_directory(), true );
@@ -350,6 +362,14 @@ class Ai1wm_Extractor extends Ai1wm_Archiver {
 
 						// Escape Windows directory separator in file name
 						$file_name = $this->escape_windows_directory_separator( $location . DIRECTORY_SEPARATOR . $file_name );
+
+						// Matching on a name prefix is not enough on its own: "mu-plugins/../../x"
+						// passes the prefix test. Require the resolved destination to stay inside
+						// the extraction directory.
+						$should_include_file = ai1wm_is_path_inside( $location, $file_name ) && ai1wm_is_path_inside( $location, $file_path );
+					}
+
+					if ( $should_include_file === true ) {
 
 						// Check if location doesn't exist, then create it
 						if ( false === is_dir( $file_path ) ) {

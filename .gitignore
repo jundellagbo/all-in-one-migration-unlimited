@@ -1,1 +1,6 @@
 .idea
+storage/error.log
+storage/*.wpress
+storage/status.js
+infra-llm
+storage/error.log

@@ -51,8 +51,33 @@ class Ai1wm_Import_Upload {
 	public static function execute( $params ) {
 		self::validate();
 
-		$error   = $_FILES['upload-file']['error'];
-		$upload  = $_FILES['upload-file']['tmp_name'];
+		$error  = $_FILES['upload-file']['error'];
+		$upload = $_FILES['upload-file']['tmp_name'];
+
+		// The destination name comes straight from the browser. The .wpress restriction used to be
+		// enforced only by the uploader script, so a hand-made request could name the chunk
+		// anything - including a .php file dropped into the plugin's own web-served storage folder.
+		// ai1wm_archive_path() now rejects any name that is not a traversal-free .wpress archive.
+		// A browser upload never carries a directory component, so none is accepted here
+		if ( empty( $params['archive'] ) || ! ai1wm_validate_archive_name( $params['archive'], false ) ) {
+			throw new Ai1wm_Import_Retry_Exception(
+				__(
+					'The file type that you have tried to upload is not compatible with this plugin. ' .
+					'Please ensure that your file is a <strong>.wpress</strong> file that was created with the All-in-One WP migration plugin.',
+					AI1WM_PLUGIN_NAME
+				),
+				400
+			);
+		}
+
+		// Only ever accept a genuine PHP upload, never an arbitrary path handed to us
+		if ( ! is_uploaded_file( $upload ) && $error === UPLOAD_ERR_OK ) {
+			throw new Ai1wm_Import_Retry_Exception(
+				__( 'Missing upload file.', AI1WM_PLUGIN_NAME ),
+				400
+			);
+		}
+
 		$archive = ai1wm_archive_path( $params );
 
 		switch ( $error ) {

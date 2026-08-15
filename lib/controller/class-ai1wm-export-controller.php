@@ -53,8 +53,9 @@ class Ai1wm_Export_Controller {
 
 		try {
 			// Ensure that unauthorized people cannot access export action
-			ai1wm_verify_secret_key( $secret_key );
+			ai1wm_verify_access( $secret_key, 'export' );
 		} catch ( Ai1wm_Not_Valid_Secret_Key_Exception $e ) {
+			status_header( 403 );
 			exit;
 		}
 

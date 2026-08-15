@@ -32,7 +32,12 @@ class Ai1wm_Directory {
 	 * @return boolean
 	 */
 	public static function create( $path ) {
-		return @mkdir( $path, 0777, true );
+		// 0777 made the backups and storage directories writable by every account on the host, which
+		// on shared hosting means any neighbouring site could plant files in them. Honour WordPress'
+		// configured mode where present and otherwise fall back to 0755.
+		$mode = defined( 'FS_CHMOD_DIR' ) ? FS_CHMOD_DIR : 0755;
+
+		return @mkdir( $path, $mode, true );
 	}
 
 	/**

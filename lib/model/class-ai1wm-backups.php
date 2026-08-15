@@ -83,9 +83,16 @@ class Ai1wm_Backups {
 	 * @return boolean
 	 */
 	public function delete_file( $file ) {
-		if ( validate_file( $file ) === 0 ) {
-			return @unlink( ai1wm_backup_path( array( 'archive' => $file ) ) );
+		// validate_file() permits a trailing "../" and does not treat a backslash as a separator, so
+		// it is not on its own a containment check. ai1wm_backup_path() validates the name and
+		// confirms the resolved path is still inside the backups directory.
+		$path = ai1wm_backup_path( array( 'archive' => $file ) );
+
+		if ( ! is_file( $path ) ) {
+			return false;
 		}
+
+		return @unlink( $path );
 	}
 
 	/**

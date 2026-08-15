@@ -58,8 +58,9 @@ class Ai1wm_Report_Controller {
 
 		try {
 			// Ensure that unauthorized people cannot access report action
-			ai1wm_verify_secret_key( $secret_key );
+			ai1wm_verify_access( $secret_key, array( 'export', 'import' ) );
 		} catch ( Ai1wm_Not_Valid_Secret_Key_Exception $e ) {
+			status_header( 403 );
 			exit;
 		}
 

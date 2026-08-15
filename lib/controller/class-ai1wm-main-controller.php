@@ -50,6 +50,12 @@ class Ai1wm_Main_Controller {
 			$this->create_backups_index( AI1WM_BACKUPS_INDEX );
 		}
 
+		if ( is_dir( AI1WM_STORAGE_PATH ) ) {
+			$this->create_backups_htaccess( AI1WM_STORAGE_HTACCESS );
+			$this->create_backups_webconfig( AI1WM_STORAGE_WEBCONFIG );
+			$this->create_storage_index( AI1WM_STORAGE_INDEX );
+		}
+
 		if ( extension_loaded( 'litespeed' ) ) {
 			$this->create_litespeed_htaccess( AI1WM_WORDPRESS_HTACCESS );
 		}
@@ -240,15 +246,49 @@ class Ai1wm_Main_Controller {
 			$this->create_backups_index( AI1WM_BACKUPS_INDEX );
 		}
 
-		// Check if .htaccess is created in backups folder
-		if ( ! is_file( AI1WM_BACKUPS_HTACCESS ) ) {
+		// The storage folder lives inside the plugin directory and so is served over HTTP. It holds
+		// in-progress archives and error.log, and an upload lands there before it is validated, so
+		// it needs the same deny rules as the backups folder.
+		if ( self::needs_deny_rules( AI1WM_STORAGE_HTACCESS, 'Require all denied' ) ) {
+			$this->create_backups_htaccess( AI1WM_STORAGE_HTACCESS );
+		}
+
+		if ( self::needs_deny_rules( AI1WM_STORAGE_WEBCONFIG, '<deny users="*" />' ) ) {
+			$this->create_backups_webconfig( AI1WM_STORAGE_WEBCONFIG );
+		}
+
+		// Check if .htaccess is created in backups folder, and rewrite the permissive version
+		// shipped by earlier releases, which did not actually deny anything
+		if ( self::needs_deny_rules( AI1WM_BACKUPS_HTACCESS, 'Require all denied' ) ) {
 			$this->create_backups_htaccess( AI1WM_BACKUPS_HTACCESS );
 		}
 
 		// Check if web.config is created in backups folder
-		if ( ! is_file( AI1WM_BACKUPS_WEBCONFIG ) ) {
+		if ( self::needs_deny_rules( AI1WM_BACKUPS_WEBCONFIG, '<deny users="*" />' ) ) {
 			$this->create_backups_webconfig( AI1WM_BACKUPS_WEBCONFIG );
 		}
+	}
+
+	/**
+	 * Does a protection file need to be written or refreshed?
+	 *
+	 * Returns true when the file is missing or predates the deny rules, so upgrades from a release
+	 * that only hid directory listings pick up the stricter policy.
+	 *
+	 * @param  string  $path   Path to the protection file
+	 * @param  string  $marker Text that must be present for the file to be considered current
+	 * @return boolean
+	 */
+	private static function needs_deny_rules( $path, $marker ) {
+		if ( ! is_file( $path ) ) {
+			return true;
+		}
+
+		if ( ( $contents = @file_get_contents( $path ) ) === false ) {
+			return false;
+		}
+
+		return strpos( $contents, $marker ) === false;
 	}
 
 	/**
@@ -836,9 +876,16 @@ class Ai1wm_Main_Controller {
 			array( 'ai1wm_util' )
 		);
 
+		// The nonce rides on the URL so check_ajax_referer() finds it in $_REQUEST without the
+		// minified updater script having to learn about a new POST field
 		wp_localize_script( 'ai1wm_updater', 'ai1wm_updater', array(
 			'ajax' => array(
-				'url' => wp_make_link_relative( admin_url( 'admin-ajax.php?action=ai1wm_updater' ) ),
+				'url' => wp_make_link_relative(
+					add_query_arg(
+						array( 'ai1wm_nonce' => wp_create_nonce( 'ai1wm_updater' ) ),
+						admin_url( 'admin-ajax.php?action=ai1wm_updater' )
+					)
+				),
 			),
 		) );
 
@@ -867,21 +914,26 @@ class Ai1wm_Main_Controller {
 	 */
 	public function init() {
 
-		// Set secret key
-		if ( ! get_option( AI1WM_SECRET_KEY ) ) {
-			update_option( AI1WM_SECRET_KEY, wp_generate_password( 12, false ) );
-		}
+		// Set secret key (generates a 64 character key, and replaces any legacy short one)
+		ai1wm_secret_key();
 
-		// Set username
-		if ( isset( $_SERVER['PHP_AUTH_USER'] ) ) {
-			update_option( AI1WM_AUTH_USER, $_SERVER['PHP_AUTH_USER'] );
-		} elseif ( isset( $_SERVER['REMOTE_USER'] ) ) {
-			update_option( AI1WM_AUTH_USER, $_SERVER['REMOTE_USER'] );
-		}
+		// Set username and password
+		//
+		// These are the site's HTTP auth credentials, kept so the loopback export/import requests
+		// can get back in. Only record them for a user who could run a migration anyway - otherwise
+		// any visitor hitting the admin with basic auth headers rewrites what the server replays.
+		if ( current_user_can( 'export' ) || current_user_can( 'import' ) ) {
+			// Set username
+			if ( isset( $_SERVER['PHP_AUTH_USER'] ) ) {
+				update_option( AI1WM_AUTH_USER, $_SERVER['PHP_AUTH_USER'] );
+			} elseif ( isset( $_SERVER['REMOTE_USER'] ) ) {
+				update_option( AI1WM_AUTH_USER, $_SERVER['REMOTE_USER'] );
+			}
 
-		// Set password
-		if ( isset( $_SERVER['PHP_AUTH_PW'] ) ) {
-			update_option( AI1WM_AUTH_PASSWORD, $_SERVER['PHP_AUTH_PW'] );
+			// Set password
+			if ( isset( $_SERVER['PHP_AUTH_PW'] ) ) {
+				update_option( AI1WM_AUTH_PASSWORD, $_SERVER['PHP_AUTH_PW'] );
+			}
 		}
 
 		// Check for updates
@@ -899,12 +951,17 @@ class Ai1wm_Main_Controller {
 	 */
 	public function router() {
 		// Public actions
+		//
+		// Only export and import stay reachable without a login, because the plugin drives long
+		// migrations by having the server POST back to admin-ajax.php, and those loopback requests
+		// carry no cookies. They are authenticated by the secret key alone, which is why that key
+		// is now 64 characters and compared in constant time.
+		//
+		// Status, backup deletion, feedback and report are only ever called from the admin screens
+		// with a live session, so they no longer answer logged-out callers at all. Backup deletion
+		// in particular was an unauthenticated file-removal endpoint.
 		add_action( 'wp_ajax_nopriv_ai1wm_export', 'Ai1wm_Export_Controller::export' );
 		add_action( 'wp_ajax_nopriv_ai1wm_import', 'Ai1wm_Import_Controller::import' );
-		add_action( 'wp_ajax_nopriv_ai1wm_status', 'Ai1wm_Status_Controller::status' );
-		add_action( 'wp_ajax_nopriv_ai1wm_backups', 'Ai1wm_Backups_Controller::delete' );
-		add_action( 'wp_ajax_nopriv_ai1wm_feedback', 'Ai1wm_Feedback_Controller::feedback' );
-		add_action( 'wp_ajax_nopriv_ai1wm_report', 'Ai1wm_Report_Controller::report' );
 
 		// Private actions
 		add_action( 'wp_ajax_ai1wm_export', 'Ai1wm_Export_Controller::export' );

@@ -34,8 +34,16 @@
  */
 
 // Check SSL Mode
-if ( isset( $_SERVER['HTTP_X_FORWARDED_PROTO'] ) && ( $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https' ) ) {
-	$_SERVER['HTTPS'] = 'on';
+//
+// X-Forwarded-Proto is client-supplied unless a trusted proxy sets it, so honouring it
+// unconditionally lets any visitor make the site believe the request arrived over TLS. Sites that
+// genuinely sit behind a terminating proxy opt in with:
+//
+//   define( 'AI1WM_TRUST_FORWARDED_PROTO', true );
+if ( defined( 'AI1WM_TRUST_FORWARDED_PROTO' ) && AI1WM_TRUST_FORWARDED_PROTO ) {
+	if ( isset( $_SERVER['HTTP_X_FORWARDED_PROTO'] ) && ( $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https' ) ) {
+		$_SERVER['HTTPS'] = 'on';
+	}
 }
 
 // Plugin Basename

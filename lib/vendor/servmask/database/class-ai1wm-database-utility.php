@@ -57,7 +57,13 @@ class Ai1wm_Database_Utility {
 		try {
 
 			// Some unserialized data cannot be re-serialized eg. SimpleXMLElements
-			if ( is_serialized( $data ) && ( $unserialized = @unserialize( $data ) ) !== false ) {
+			//
+			// Objects are never instantiated here. The data being walked is row content from an
+			// imported archive, so allowing class instantiation would hand any gadget chain present
+			// on the site a __wakeup()/__destruct() trigger during a restore. With allowed_classes
+			// set to false, objects come back as __PHP_Incomplete_Class and the branch below leaves
+			// them untouched.
+			if ( is_serialized( $data ) && ( $unserialized = self::unserialize( $data ) ) !== false ) {
 				$data = self::replace_serialized_values( $from, $to, $unserialized, true );
 			} elseif ( is_array( $data ) ) {
 				$tmp = array();
@@ -93,6 +99,26 @@ class Ai1wm_Database_Utility {
 		}
 
 		return $data;
+	}
+
+	/**
+	 * Unserialize without instantiating objects
+	 *
+	 * @param  string $data Serialized data
+	 * @return mixed        Unserialized value, or false on failure
+	 */
+	private static function unserialize( $data ) {
+		if ( version_compare( PHP_VERSION, '7.0.0', '>=' ) ) {
+			return @unserialize( $data, array( 'allowed_classes' => false ) );
+		}
+
+		// PHP 5 has no allowed_classes option. Refuse serialized objects outright rather than
+		// instantiate them; strings, arrays and scalars still round-trip normally.
+		if ( preg_match( '/(^|;)O:\d+:"/', $data ) ) {
+			return false;
+		}
+
+		return @unserialize( $data );
 	}
 
 	/**

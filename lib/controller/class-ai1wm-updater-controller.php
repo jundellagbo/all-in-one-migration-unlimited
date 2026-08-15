@@ -55,6 +55,17 @@ class Ai1wm_Updater_Controller {
 	public static function updater( $params = array() ) {
 		ai1wm_setup_environment();
 
+		// This writes the stored extension licence keys, so it must not be drivable by a page an
+		// administrator happens to visit. Require the capability again at call time (the action is
+		// registered during admin_init, when the check can run against a different request) plus a
+		// nonce to prove the request came from our own screen.
+		if ( ! current_user_can( 'update_plugins' ) ) {
+			status_header( 403 );
+			exit;
+		}
+
+		check_ajax_referer( 'ai1wm_updater', 'ai1wm_nonce' );
+
 		// Set params
 		if ( empty( $params ) ) {
 			$params = stripslashes_deep( $_POST );
